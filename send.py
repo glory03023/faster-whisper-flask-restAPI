@@ -27,5 +27,5 @@ filename = argv[1]
 
 files = {"audio_file": open(filename, "rb")}
 
-r = requests.post("http://localhost:9876/api/v0/transcribe", files=files)
+r = requests.post("http://152.70.159.40:9090/api/v0/transcribe", files=files)
 print(f"{r.status_code}: {r.json()}")
