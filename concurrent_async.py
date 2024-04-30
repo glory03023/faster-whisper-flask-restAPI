@@ -3,10 +3,7 @@ import aiohttp
 import os
 from time import time
 from pydub import AudioSegment
-
-AUDIO_FILE = "jfk.wav"
-
-AUDIO_FOLDER = "D:\Corpus\Speech\LJSpeech-1.1\wavs"
+import argparse
 
 def get_wav_files(folder_path):
     wav_files = []
@@ -23,12 +20,11 @@ def get_audio_duration(file_path):
     return duration_sec
 
 AUDIO_FILES = []
-async def process_api_request(session, index):
+async def process_api_request(uri, session, index):
     try:
         print(f'started API request of index: {index}.')
         files = {"audio_file": open(AUDIO_FILES[index], "rb")}
-        url = 'http://152.70.159.40:9090/api/v0/transcribe'
-        async with session.post(url, data = files) as response:
+        async with session.post(uri, data = files) as response:
             if "application/json" in response.headers.get("Content-Type", ""):
                 result = await response.json()
             else:
@@ -43,23 +39,36 @@ async def process_api_request(session, index):
         print(f'Error: {str(e)}')
         return None
 
-async def run_concurrent_requests(concurrent_requests):
+async def run_concurrent_requests(uri, concurrent_requests):
     async with aiohttp.ClientSession() as session:
         task = []
         for index in range(concurrent_requests):
-            task.append(process_api_request(session=session, index=index))
+            task.append(process_api_request(uri, session=session, index=index))
         return await asyncio.gather(*task, return_exceptions=True)
     
 if __name__ == "__main__":
-    AUDIO_FILES = get_wav_files(AUDIO_FOLDER)
-    concurrent_requests=100 #len(AUDIO_FILES)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--uri', '-u',
+                        type=str,
+                        default="http://152.70.159.40:9090/api/v0/transcribe",
+                        help="restAPI endpoint to request audio transcription.")
+    parser.add_argument('--audio', '-a',
+                        type=str,
+                        default="wavs",
+                        help="path to folder to have audio files to transcribe")
+
+    args = parser.parse_args()
+
+
+    AUDIO_FILES = get_wav_files(args.audio)
+    concurrent_requests=len(AUDIO_FILES)
 
     duration = 0
     for i in range (concurrent_requests):
         duration += get_audio_duration(AUDIO_FILES[i])
 
     run_time = time()
-    resp = asyncio.run(run_concurrent_requests(concurrent_requests=concurrent_requests))
+    resp = asyncio.run(run_concurrent_requests(uri=args.uri, concurrent_requests=concurrent_requests))
 
     run_time = time() - run_time
 
