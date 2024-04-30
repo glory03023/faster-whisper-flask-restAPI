@@ -35,7 +35,6 @@ async def process_api_request(uri, session, index):
         resultFile = AUDIO_FILES[index][:-3] + "json"
         with open(resultFile, "w", encoding="utf-8") as f:
             f.write(result)
-            print(result)
 
         return result
         # print(resp.json())
