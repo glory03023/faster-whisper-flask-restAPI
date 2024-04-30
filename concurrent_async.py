@@ -4,6 +4,7 @@ import os
 from time import time
 from pydub import AudioSegment
 import argparse
+import json
 
 def get_wav_files(folder_path):
     wav_files = []
@@ -27,9 +28,15 @@ async def process_api_request(uri, session, index):
         async with session.post(uri, data = files) as response:
             if "application/json" in response.headers.get("Content-Type", ""):
                 result = await response.json()
+                result = json.dumps(result)
             else:
                 result = await response.text()
         print(f'Response of request of index - {index} : {result}')
+        resultFile = AUDIO_FILES[index][:-3] + "json"
+        with open(resultFile, "w", encoding="utf-8") as f:
+            f.write(result)
+            print(result)
+
         return result
         # print(resp.json())
         # return "200"
