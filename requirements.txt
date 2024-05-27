@@ -5,3 +5,6 @@ soundfile
 faster_whisper
 flask
 configargparse
+aiohttp
+pydub
+
