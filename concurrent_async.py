@@ -6,6 +6,8 @@ from pydub import AudioSegment
 import argparse
 import json
 
+num_concurrent_requests = 10 # Number of concurrent requests
+
 def get_wav_files(folder_path):
     wav_files = []
     for file in os.listdir(folder_path):
@@ -47,11 +49,15 @@ async def process_api_request(uri, session, index):
 
 async def run_concurrent_requests(uri, concurrent_requests):
     async with aiohttp.ClientSession() as session:
-        task = []
+        tasks = []
         for index in range(concurrent_requests):
-            task.append(process_api_request(uri, session=session, index=index))
-        return await asyncio.gather(*task, return_exceptions=True)
-    
+            tasks.append(process_api_request(uri, session=session, index=index))
+            if (len(tasks) == num_concurrent_requests):
+                await asyncio.gather(*tasks, return_exceptions=True)
+                tasks.clear()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--uri', '-u',
@@ -65,6 +71,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    print(args.audio)
 
     AUDIO_FILES = get_wav_files(args.audio)
     concurrent_requests=len(AUDIO_FILES)
