@@ -4,17 +4,18 @@ from faster_whisper import WhisperModel
 from faster_whisper.audio import decode_audio
 import glob
 import os
-import concurrent.futures
+import threading
+import queue
 
 def get_wav_files(folder_path):
     wav_files = glob.glob(os.path.join(folder_path, '**', '*.wav'), recursive=True)
     return wav_files
 
-def transcribe_audio(audio_array, whisper_model, beam_size, language):
+def transcribe_audio(wav_path, whisper_model, beam_size, language):
     t_start = time()
 
     segments, info = whisper_model.transcribe(
-        audio_array,
+        wav_path,
         beam_size=beam_size,
         language=language,
         task="transcribe",
@@ -38,13 +39,25 @@ def transcribe_audio(audio_array, whisper_model, beam_size, language):
 
     return result
 
+def worker(model, task_queue, beam_size, language):
+    while True:
+        try:
+            file_path = task_queue.get_nowait()  # Get a task from the queue
+        except queue.Empty:
+            break  # Exit the loop if the queue is empty
+        try:
+            result = transcribe_audio(file_path, model, beam_size, language)
+            print(file_path, result)
+        finally:
+            task_queue.task_done()  # Signal that the task is done
+
+
 
 def main(args):
     print("Initializing WhisperModel instance")
 
     num_models = args.batch_size
     whisper_models = []
-    whisper_model_status = []
     for i in range(num_models):
         whisper_models.append(WhisperModel(
             args.model,
@@ -53,7 +66,6 @@ def main(args):
             compute_type=args.compute_type,
             download_root=args.model_cache_dir,
         ))
-        whisper_model_status.append("idle")
         print(f"{i}th WhisperModel instances is initialized")        
 
     print(f"{num_models} WhisperModel instances are initialized")
@@ -62,37 +74,29 @@ def main(args):
     language = args.language
 
     audio_path = args.audio
-
     wav_files = get_wav_files(audio_path)
 
-    tasks = []
-    for idx, wav_file in enumerate(wav_files):
-        print(idx, wav_file)
-        tasks.append((wav_file, idx))
-
-    def process_task(task):
-        # Replace this with your actual task processing logic
-        wav_file, idx = task
-        idx = idx % num_models
-        audio_array = decode_audio(wav_file)
-        result = transcribe_audio(audio_array, whisper_models[idx], beam_size, language)
-        print(result)
-        return result
+    task_queue = queue.Queue()
+    for file in wav_files:
+        task_queue.put(file)
 
     t_start = time()
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=num_models) as executor:
-        # Submit each task to the executor
-        futures = [executor.submit(process_task, task) for task in tasks]
-        
-        # Collect the results as they are completed
-        results = [future.result() for future in concurrent.futures.as_completed(futures)]
-        
+    worker_threads = []
+    for model in whisper_models:
+        thread = threading.Thread(target=worker, args=(model, task_queue, beam_size, language))
+        thread.start()
+        worker_threads.append(thread)
+    
+    # Wait for all threads to complete
+    for thread in worker_threads:
+        thread.join()
+
     t_end = time()
     t_run = t_end - t_start
     print(f"total time elapsed: {t_run} seconds")
 
-    return results
+    return
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
