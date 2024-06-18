@@ -4,6 +4,7 @@ from faster_whisper import WhisperModel
 from faster_whisper.audio import decode_audio
 import glob
 import os
+import concurrent.futures
 
 def get_wav_files(folder_path):
     wav_files = glob.glob(os.path.join(folder_path, '**', '*.wav'), recursive=True)
@@ -41,13 +42,21 @@ def transcribe_audio(audio_array, whisper_model, beam_size, language):
 def main(args):
     print("Initializing WhisperModel instance")
 
-    whisper_model = WhisperModel(
-        args.model,
-        device=args.device,
-        device_index=args.device_index,
-        compute_type=args.compute_type,
-        download_root=args.model_cache_dir,
-    )
+    num_models = args.batch_size
+    whisper_models = []
+    whisper_model_status = []
+    for i in range(num_models):
+        whisper_models.append(WhisperModel(
+            args.model,
+            device=args.device,
+            device_index=args.device_index,
+            compute_type=args.compute_type,
+            download_root=args.model_cache_dir,
+        ))
+        whisper_model_status.append("idle")
+        print(f"{i}th WhisperModel instances is initialized")        
+
+    print(f"{num_models} WhisperModel instances are initialized")
 
     beam_size = args.beam_size
     language = args.language
@@ -56,14 +65,34 @@ def main(args):
 
     wav_files = get_wav_files(audio_path)
 
-    t_start = time()
-    for wave_file in wav_files:
-        audio_array = decode_audio(wave_file)
-        result = transcribe_audio(audio_array, whisper_model, beam_size, language)
+    tasks = []
+    for idx, wav_file in enumerate(wav_files):
+        print(idx, wav_file)
+        tasks.append((wav_file, idx))
+
+    def process_task(task):
+        # Replace this with your actual task processing logic
+        wav_file, idx = task
+        idx = idx % num_models
+        audio_array = decode_audio(wav_file)
+        result = transcribe_audio(audio_array, whisper_models[idx], beam_size, language)
         print(result)
+        return result
+
+    t_start = time()
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_models) as executor:
+        # Submit each task to the executor
+        futures = [executor.submit(process_task, task) for task in tasks]
+        
+        # Collect the results as they are completed
+        results = [future.result() for future in concurrent.futures.as_completed(futures)]
+        
     t_end = time()
     t_run = t_end - t_start
     print(f"total time elapsed: {t_run} seconds")
+
+    return results
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
