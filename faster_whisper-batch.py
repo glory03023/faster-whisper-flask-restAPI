@@ -72,7 +72,7 @@ if __name__ == "__main__":
                         default="tiny",
                         help="faster whisper model type")
     
-    parser.add_argument('--batch_size', '-b',
+    parser.add_argument('--batch_size', '-s',
                         type=int,
                         default=10,
                         help="number of concurrent faster whisper model")
