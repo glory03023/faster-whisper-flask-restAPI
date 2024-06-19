@@ -8,6 +8,12 @@ import threading
 import queue
 import json
 
+
+# Shared counter and lock
+total_processed_tasks = {"count" : 0}
+counter_lock = threading.Lock()
+
+
 def get_wav_files(folder_path):
     wav_files = glob.glob(os.path.join(folder_path, '**', '*.wav'), recursive=True)
     return wav_files
@@ -46,6 +52,7 @@ def worker(model, task_queue, beam_size, language):
             file_path = task_queue.get_nowait()  # Get a task from the queue
         except queue.Empty:
             break  # Exit the loop if the queue is empty
+
         try:
             result = transcribe_audio(file_path, model, beam_size, language)
             result = json.dumps(result)
@@ -54,7 +61,12 @@ def worker(model, task_queue, beam_size, language):
             with open(resultFile, "w", encoding="utf-8") as f:
                 f.write(result)
 
-            print(resultFile)
+            # Increment the processed task count safely
+            with counter_lock:
+                total_processed_tasks["count"] += 1
+                cnt = total_processed_tasks["count"]
+                print(f"{cnt} => {resultFile}")
+
         finally:
             task_queue.task_done()  # Signal that the task is done
 
@@ -88,6 +100,7 @@ def main(args):
         task_queue.put(file)
 
     t_start = time()
+    total_processed_tasks["count"] = 0
 
     worker_threads = []
     for model in whisper_models:
