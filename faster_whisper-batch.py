@@ -2,7 +2,6 @@ import argparse
 from time import time
 from faster_whisper import WhisperModel
 from faster_whisper.audio import decode_audio
-import glob
 import os
 import threading
 import queue
@@ -14,8 +13,12 @@ total_processed_tasks = {"count" : 0}
 counter_lock = threading.Lock()
 
 
-def get_wav_files(folder_path):
-    wav_files = glob.glob(os.path.join(folder_path, '**', '*.wav'), recursive=True)
+def get_wav_files(directory):
+    wav_files = []
+    for root, _, files in os.walk(directory):
+        for file in files:
+            if file.endswith('.wav'):
+                wav_files.append(file)
     return wav_files
 
 def transcribe_audio(wav_path, whisper_model, beam_size, language):
@@ -46,7 +49,7 @@ def transcribe_audio(wav_path, whisper_model, beam_size, language):
 
     return result
 
-def worker(model, task_queue, beam_size, language):
+def worker(model, task_queue, src_path, tgt_path, beam_size, language):
     while True:
         try:
             file_path = task_queue.get_nowait()  # Get a task from the queue
@@ -54,10 +57,11 @@ def worker(model, task_queue, beam_size, language):
             break  # Exit the loop if the queue is empty
 
         try:
-            result = transcribe_audio(file_path, model, beam_size, language)
+            result = transcribe_audio(os.path.join(src_path, file_path), model, beam_size, language)
             result = json.dumps(result)
             # print(file_path, result)
-            resultFile = file_path[:-3] + "json"
+            resultFile = os.path.join(tgt_path, file_path[:-3] + "json")
+            
             with open(resultFile, "w", encoding="utf-8") as f:
                 f.write(result)
 
@@ -92,8 +96,13 @@ def main(args):
     beam_size = args.beam_size
     language = args.language
 
-    audio_path = args.audio
-    wav_files = get_wav_files(audio_path)
+    src_path = args.audio
+    tgt_path = args.srt
+
+    if not os.path.exists(tgt_path):
+        os.makedirs(tgt_path)
+
+    wav_files = get_wav_files(src_path)
 
     task_queue = queue.Queue()
     for file in wav_files:
@@ -104,7 +113,7 @@ def main(args):
 
     worker_threads = []
     for model in whisper_models:
-        thread = threading.Thread(target=worker, args=(model, task_queue, beam_size, language))
+        thread = threading.Thread(target=worker, args=(model, task_queue, src_path, tgt_path, beam_size, language))
         thread.start()
         worker_threads.append(thread)
     
@@ -125,7 +134,7 @@ if __name__ == "__main__":
                         default="tiny",
                         help="faster whisper model type")
     
-    parser.add_argument('--batch_size', '-s',
+    parser.add_argument('--batch_size', '-n',
                         type=int,
                         default=10,
                         help="number of concurrent faster whisper model")
@@ -163,6 +172,11 @@ if __name__ == "__main__":
     parser.add_argument('--audio', '-a',
                         type=str,
                         default="wavs",
+                        help="path to folder to have audio files to transcribe")
+
+    parser.add_argument('--srt', '-s',
+                        type=str,
+                        default="srts",
                         help="path to folder to have audio files to transcribe")
     
     args = parser.parse_args()
