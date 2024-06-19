@@ -6,6 +6,7 @@ import glob
 import os
 import threading
 import queue
+import json
 
 def get_wav_files(folder_path):
     wav_files = glob.glob(os.path.join(folder_path, '**', '*.wav'), recursive=True)
@@ -47,7 +48,8 @@ def worker(model, task_queue, beam_size, language):
             break  # Exit the loop if the queue is empty
         try:
             result = transcribe_audio(file_path, model, beam_size, language)
-            print(file_path, result)
+            result = json.dumps(result)
+            # print(file_path, result)
             resultFile = file_path[:-3] + "json"
             with open(resultFile, "w", encoding="utf-8") as f:
                 f.write(result)
