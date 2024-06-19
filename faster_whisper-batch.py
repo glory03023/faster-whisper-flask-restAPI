@@ -48,6 +48,9 @@ def worker(model, task_queue, beam_size, language):
         try:
             result = transcribe_audio(file_path, model, beam_size, language)
             print(file_path, result)
+            resultFile = file_path[:-3] + "json"
+            with open(resultFile, "w", encoding="utf-8") as f:
+                f.write(result)
         finally:
             task_queue.task_done()  # Signal that the task is done
 
