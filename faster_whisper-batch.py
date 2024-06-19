@@ -53,6 +53,8 @@ def worker(model, task_queue, beam_size, language):
             resultFile = file_path[:-3] + "json"
             with open(resultFile, "w", encoding="utf-8") as f:
                 f.write(result)
+
+            print(resultFile)
         finally:
             task_queue.task_done()  # Signal that the task is done
 
