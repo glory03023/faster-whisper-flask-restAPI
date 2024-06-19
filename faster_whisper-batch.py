@@ -18,7 +18,7 @@ def get_wav_files(directory):
     for root, _, files in os.walk(directory):
         for file in files:
             if file.endswith('.wav'):
-                wav_files.append(file)
+                wav_files.append(os.path.join(root, file))
     return wav_files
 
 def transcribe_audio(wav_path, whisper_model, beam_size, language):
@@ -57,10 +57,14 @@ def worker(model, task_queue, src_path, tgt_path, beam_size, language):
             break  # Exit the loop if the queue is empty
 
         try:
-            result = transcribe_audio(os.path.join(src_path, file_path), model, beam_size, language)
+            result = transcribe_audio(file_path, model, beam_size, language)
             result = json.dumps(result)
             # print(file_path, result)
-            resultFile = os.path.join(tgt_path, file_path[:-3] + "json")
+            resultFile = os.path.join(tgt_path, os.path.relpath(file_path[:-3] + "json", src_path))
+
+            dest_file_dir = os.path.dirname(resultFile)
+            if not os.path.exists(dest_file_dir):
+                os.makedirs(dest_file_dir)
             
             with open(resultFile, "w", encoding="utf-8") as f:
                 f.write(result)
