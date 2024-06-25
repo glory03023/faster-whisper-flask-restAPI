@@ -6,6 +6,8 @@ import os
 import threading
 import queue
 import json
+import librosa
+import resampy
 
 
 # Shared counter and lock
@@ -25,8 +27,10 @@ def transcribe_audio(wav_path, whisper_model, beam_size, language):
     t_start = time()
 
     try:
+        y, sr = librosa.load(wav_path, sr=None)
+        audio = resampy.resample(y, sr, 16000)
         segments, info = whisper_model.transcribe(
-            wav_path,
+            audio,
             beam_size=beam_size,
             language=language,
             task="transcribe",
