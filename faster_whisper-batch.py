@@ -24,28 +24,33 @@ def get_wav_files(directory):
 def transcribe_audio(wav_path, whisper_model, beam_size, language):
     t_start = time()
 
-    segments, info = whisper_model.transcribe(
-        wav_path,
-        beam_size=beam_size,
-        language=language,
-        task="transcribe",
-    )
+    try:
+        segments, info = whisper_model.transcribe(
+            wav_path,
+            beam_size=beam_size,
+            language=language,
+            task="transcribe",
+        )
 
-    found_text = list()
-    for segment in segments:
-        found_text.append(segment.text)
-    text = " ".join(found_text).strip()
+        found_text = list()
+        for segment in segments:
+            found_text.append(segment.text)
+        text = " ".join(found_text).strip()
 
-    t_end = time()
-    t_run = t_end - t_start
+        t_end = time()
+        t_run = t_end - t_start
 
-    result = {
-        "text": text,
-        "language": info.language,
-        "language_probability": info.language_probability,
-        "sample_duration": info.duration,
-        "runtime": t_run,
-    }
+        result = {
+            "text": text,
+            "language": info.language,
+            "language_probability": info.language_probability,
+            "sample_duration": info.duration,
+            "runtime": t_run,
+        }
+    except:
+        result = {
+            "Error": "True"
+        }
 
     return result
 
@@ -58,16 +63,20 @@ def worker(model, task_queue, src_path, tgt_path, beam_size, language):
 
         try:
             result = transcribe_audio(file_path, model, beam_size, language)
-            result = json.dumps(result)
-            # print(file_path, result)
-            resultFile = os.path.join(tgt_path, os.path.relpath(file_path[:-3] + "json", src_path))
-
-            dest_file_dir = os.path.dirname(resultFile)
-            if not os.path.exists(dest_file_dir):
-                os.makedirs(dest_file_dir)
             
-            with open(resultFile, "w", encoding="utf-8") as f:
-                f.write(result)
+            if "Error" in result:
+                pass
+            else:
+                result = json.dumps(result)
+                # print(file_path, result)
+                resultFile = os.path.join(tgt_path, os.path.relpath(file_path[:-3] + "json", src_path))
+
+                dest_file_dir = os.path.dirname(resultFile)
+                if not os.path.exists(dest_file_dir):
+                    os.makedirs(dest_file_dir)
+                
+                with open(resultFile, "w", encoding="utf-8") as f:
+                    f.write(result)
 
             # Increment the processed task count safely
             with counter_lock:
